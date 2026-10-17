@@ -35,20 +35,26 @@ MySQL (students, admin, complaints)
   - `admin(username PK, password_hash NOT NULL)`
   - `complaints(complaint_id AUTO PK, student_id FK → students ON DELETE CASCADE, title, category, description, status DEFAULT 'Pending', admin_remark, created_at, updated_at, INDEX(student_id), INDEX(status), CHECK status IN (...))`
 - `database/seed.sql` inserts demo rows with real PBKDF2 hashes (optional — the server auto-seeds empty tables on startup via `DbInit`).
+- **MySQL version:** the `CHECK (status IN (...))` constraint is only *enforced* on **MySQL 8.0.16+** (older versions parse and ignore it). Status/category are also validated in the application layer (`ComplaintDAO.validStatus`/`validCategory`, `ComplaintService`), so the whitelist holds regardless of server version.
 
 ## Setup
 
-1. Install JDK 8+ and MySQL. The JDBC driver is already at `lib/mysql-connector-j.jar`.
-2. Create + seed schema (optional — auto-created on first start):
-   ```powershell
-   mysql -u root -p < database/schema.sql
-   mysql -u root -p < database/seed.sql
-   ```
-3. Configure (no secrets in code):
-   - `DB_URL` (default `jdbc:mysql://localhost:3306/student_complaint_system?...`)
+1. Install **JDK 8+** and **MySQL 8.0+** (8.0.16+ recommended, see Database notes). The JDBC driver is already at `lib/mysql-connector-j.jar`.
+2. Configure via environment variables (no secrets in code). See `.env.example` for the full template — the app reads real env vars, it does **not** load a `.env` file:
+   - `DB_URL` (default `jdbc:mysql://localhost:3306/student_complaint_system?useSSL=false&serverTimezone=UTC`) — **must include the database name**
    - `DB_USER` (default `root`)
    - `DB_PASSWORD` (default empty)
-   - Windows: `set DB_PASSWORD=secret`
+   - `AUTO_CREATE_DB` (default `true`) — set `false` to skip automatic `CREATE DATABASE`
+   ```powershell
+   $env:DB_USER="root"; $env:DB_PASSWORD="secret"   # Windows PowerShell
+   ```
+3. Database setup (automatic). On first start `config.DbInit` connects to the server, runs `CREATE DATABASE IF NOT EXISTS`, creates the three tables, and seeds demo data.
+   - This requires the DB user to have the **CREATE** privilege. If it doesn't, either set `AUTO_CREATE_DB=false` and create the database yourself, or run the SQL manually:
+     ```powershell
+     mysql -u root -p < database/schema.sql
+     mysql -u root -p < database/seed.sql
+     ```
+   - If `CREATE DATABASE` is denied, the server logs a clear `[ERROR]` naming the missing privilege and how to fix it. If `DB_URL` has **no database segment**, auto-setup is skipped entirely (no tables are created against an unknown database).
 4. Compile + run (from project root, PowerShell):
    ```powershell
    $files = (Get-ChildItem -Recurse -Filter *.java src).FullName
@@ -57,6 +63,37 @@ MySQL (students, admin, complaints)
    ```
    Mac/Linux: replace `;` with `:`.
 5. Open `http://localhost:8080`.
+
+## Tests
+
+Plain-Java tests (no JUnit, no extra dependencies) cover the JDBC URL parsing used to auto-create the database (`config.DatabaseConnection`): typical URLs, missing/trailing database, IPv6 and replication authorities, extra path segments, and null/empty input.
+
+```powershell
+javac -d out-test -cp out test/config/DatabaseConnectionTest.java
+java -cp "out-test;out" config.DatabaseConnectionTest
+```
+
+Mac/Linux: replace `;` with `:`.
+
+These tests run automatically in CI (`.github/workflows/ci.yml`) on every push/PR.
+
+### Integration check (fresh database + privileges)
+
+Verifies that a DB user with CREATE privileges can auto-create and seed the schema. Run manually:
+
+```powershell
+# 1. Compile (see Setup) and point at a scratch database
+$env:DB_URL="jdbc:mysql://localhost:3306/scs_fresh_check?useSSL=false&serverTimezone=UTC"
+$env:DB_USER="root"; $env:DB_PASSWORD="secret"      # a user WITH CREATE privilege
+# 2. Start the app; DbInit creates the DB/tables/seed on startup
+java -cp "out;lib/mysql-connector-j.jar" Main
+# 3. In another shell, confirm the schema + seeded rows exist
+mysql -u root -p -e "USE scs_fresh_check; SHOW TABLES; SELECT COUNT(*) FROM complaints;"
+# 4. Cleanup
+mysql -u root -p -e "DROP DATABASE scs_fresh_check;"
+```
+
+To confirm the failure path, repeat with a user that lacks CREATE: the server should log the `[ERROR] ... may lack CREATE privilege` guidance instead of crashing silently.
 
 ## Admin Setup
 
@@ -90,6 +127,8 @@ src/
   handler/ComplaintHandler.java handler/AdminHandler.java
   util/Http.java  util/Json.java  util/PasswordUtil.java  util/SessionManager.java
 database/schema.sql  database/seed.sql
+test/config/DatabaseConnectionTest.java
+.env.example
 frontend/index.html  login.html  register.html  admin-login.html
 frontend/student-dashboard.html  complaints.html  submit-complaint.html
 frontend/complaint-details.html  admin-dashboard.html  admin-complaint.html  profile.html

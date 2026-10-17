@@ -20,7 +20,7 @@ import java.net.InetSocketAddress;
  *
  * Run:
  *   javac -d out -cp "lib/mysql-connector-j.jar" src/Main.java (plus every file under src)
- *   (simplest: use build.bat / see README for the one-liner)
+ *   (see README "Setup" for the compile one-liner)
  *   java -cp "out;lib/mysql-connector-j.jar" Main        (Windows)
  *   java -cp "out:lib/mysql-connector-j.jar" Main        (Mac/Linux)
  * Open http://localhost:8080
