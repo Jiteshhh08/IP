@@ -58,6 +58,17 @@ MySQL (students, admin, complaints)
    Mac/Linux: replace `;` with `:`.
 5. Open `http://localhost:8080`.
 
+## Tests
+
+Plain-Java tests (no JUnit, no extra dependencies) cover the JDBC URL parsing used to auto-create the database (`config.DatabaseConnection`): typical URLs, missing/trailing database, IPv6 and replication authorities, extra path segments, and null/empty input.
+
+```powershell
+javac -d out-test -cp out test/config/DatabaseConnectionTest.java
+java -cp "out-test;out" config.DatabaseConnectionTest
+```
+
+Mac/Linux: replace `;` with `:`.
+
 ## Admin Setup
 
 Initial admin is created by `DbInit.seed()` on first start: `admin / admin123`. Change it after first login by updating the DB (hash via `java PasswordUtil <newpass>`), or extend the app with change-password. Students self-register; seed students `STU001–STU004 / pass123` exist for demo.

@@ -20,15 +20,18 @@ public class DbInit {
         if (db != null) {
             var server = DatabaseConnection.getServerConnection();
             var s0 = server.createStatement();
-            s0.execute("CREATE DATABASE IF NOT EXISTS " + db);
+            s0.execute("CREATE DATABASE IF NOT EXISTS `" + db + "`");
             s0.close();
             server.close();
+        } else {
+            System.out.println("[WARN] DB_URL has no usable database name; skipping auto-create.");
+            System.out.println("       Run database/schema.sql and use a URL that includes the database.");
         }
 
         // 2. Now connect to the database and ensure the tables exist.
         var con = DatabaseConnection.getConnection();
         var st = con.createStatement();
-        if (db != null) st.execute("USE " + db);
+        if (db != null) st.execute("USE `" + db + "`");
 
         if (oldSchema(st)) {
             System.out.println("[INFO] Old schema detected (no password_hash) -> recreating tables.");
