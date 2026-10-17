@@ -14,10 +14,21 @@ import util.PasswordUtil;
 public class DbInit {
 
     public static void ensure() throws Exception {
+        // 1. Server-level connection (no database) so we can create it on a
+        //    fresh machine. Connecting straight to a missing DB would fail.
+        String db = DatabaseConnection.databaseName();
+        if (db != null) {
+            var server = DatabaseConnection.getServerConnection();
+            var s0 = server.createStatement();
+            s0.execute("CREATE DATABASE IF NOT EXISTS " + db);
+            s0.close();
+            server.close();
+        }
+
+        // 2. Now connect to the database and ensure the tables exist.
         var con = DatabaseConnection.getConnection();
         var st = con.createStatement();
-        st.execute("CREATE DATABASE IF NOT EXISTS student_complaint_system");
-        st.execute("USE student_complaint_system");
+        if (db != null) st.execute("USE " + db);
 
         if (oldSchema(st)) {
             System.out.println("[INFO] Old schema detected (no password_hash) -> recreating tables.");
@@ -49,7 +60,8 @@ public class DbInit {
                 + "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
                 + "FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,"
                 + "INDEX idx_complaint_student (student_id),"
-                + "INDEX idx_complaint_status (status))");
+                + "INDEX idx_complaint_status (status),"
+                + "CHECK (status IN ('Pending','In Progress','Resolved','Rejected')))");
         st.close();
         con.close();
         seed();
