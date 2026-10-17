@@ -86,11 +86,20 @@ public class DatabaseConnectionTest {
         eq("db name (empty)", null, DatabaseConnection.databaseName(""));
         eq("server url (empty) unchanged", "", DatabaseConnection.serverUrl(""));
 
-        // Unusable name (backtick cannot be quoted safely in CREATE DATABASE).
-        String u10 = "jdbc:mysql://localhost:3306/bad`name?x=1";
-        eq("db name (backtick rejected)", null, DatabaseConnection.databaseName(u10));
+        // Usable name with a hyphen (valid when backtick-quoted).
+        String u10 = "jdbc:mysql://localhost:3306/my-db_01?x=1";
+        eq("db name (hyphen/underscore ok)", "my-db_01", DatabaseConnection.databaseName(u10));
+
+        // Names outside the identifier whitelist are rejected (backtick, space,
+        // semicolon) so they can never be injected into CREATE DATABASE.
+        String u11 = "jdbc:mysql://localhost:3306/bad`name?x=1";
+        eq("db name (backtick rejected)", null, DatabaseConnection.databaseName(u11));
         eq("server url (backtick) still strips path", "jdbc:mysql://localhost:3306?x=1",
-                DatabaseConnection.serverUrl(u10));
+                DatabaseConnection.serverUrl(u11));
+        eq("db name (space rejected)", null,
+                DatabaseConnection.databaseName("jdbc:mysql://localhost:3306/bad name"));
+        eq("db name (semicolon rejected)", null,
+                DatabaseConnection.databaseName("jdbc:mysql://localhost:3306/db;DROP"));
 
         System.out.println();
         System.out.println(passed + " passed, " + failed + " failed");

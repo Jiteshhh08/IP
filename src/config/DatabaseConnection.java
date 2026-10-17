@@ -63,13 +63,24 @@ public class DatabaseConnection {
         String path = base.substring(slash + 1);
         int next = path.indexOf('/');            // ignore any extra path segments
         if (next >= 0) path = path.substring(0, next);
-        return path.isEmpty() || path.indexOf('`') >= 0 ? null : path;
+        // Whitelist conservative identifier characters only; anything else is
+        // rejected so the name is always safe to backtick-quote in SQL.
+        return path.matches("[A-Za-z0-9_-]+") ? path : null;
     }
 
     // Convenience overloads bound to the configured URL.
     public static String serverUrl() { return serverUrl(URL); }
 
     public static String databaseName() { return databaseName(URL); }
+
+    /**
+     * AUTO_CREATE_DB flag (default true). Set to "false", "0" or "no" to skip
+     * automatic CREATE DATABASE when the database is managed by a DBA.
+     */
+    public static boolean autoCreateDb() {
+        String v = env("AUTO_CREATE_DB", "true").trim();
+        return !(v.equalsIgnoreCase("false") || v.equals("0") || v.equalsIgnoreCase("no"));
+    }
 
     /**
      * Index of the "/" that starts the database/path segment, or -1.
