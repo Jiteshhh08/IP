@@ -1,153 +1,123 @@
 # Student Complaint Management System
 
-One real application. Students submit complaints with password login, admins resolve them. **MySQL is the only source of truth** — no demo data in the browser, no second app for viva.
+A simple full-stack app where students submit complaints and admins resolve them.
+Students register and log in, submit and track complaints, and see admin responses.
+Admins search and filter complaints, update status, and leave a remark.
 
-## Features
+## Stack
 
-- Student: register, login (ID or email + password), dashboard with stats, submit complaint, own complaints only, detail + admin response, profile, logout.
-- Admin: login, dashboard with totals + search (ID/student/title) + status/category filters, complaint detail, update status + remark.
-- Lifecycle: `Pending → In Progress → Resolved` (or `Rejected`). Student sees updates straight from the DB.
+- **Backend:** Java 21, Spring Boot 3.5, Spring Web, Spring Data JPA, Bean Validation, MySQL.
+- **Frontend:** React 18, Vite, React Router, plain CSS.
+- **Auth:** session cookie (`JSESSIONID`), PBKDF2 password hashing.
+- **Database:** MySQL `student_complaint_system` (`students`, `admin`, `complaints`).
 
-## Tech Stack
-
-HTML + CSS + vanilla JS. Java (JDK `com.sun.net.httpserver.HttpServer`, JDBC) + MySQL. No Spring, no Hibernate, no React, no Tomcat. Passwords: PBKDF2-HMAC-SHA256 (JDK only).
-
-## Architecture
+## Project structure
 
 ```
-Browser (fetch, cookie SESSION_ID)
-   ↓
-Main.java  →  StaticHandler (pages + static files + role guard)
-              LoginHandler / RegisterHandler / LogoutHandler
-              ComplaintHandler (student API) / AdminHandler (admin API)
-   ↓
-AuthService / ComplaintService (validation)
-   ↓
-UserDAO / ComplaintDAO (PreparedStatement only)
-   ↓
-MySQL (students, admin, complaints)
+backend/                 Spring Boot API
+  src/main/java/com/college/complaints/
+    config/              CORS/interceptor config, demo seeder
+    domain/              Student, Admin, Complaint
+    repository/          Spring Data repositories
+    service/             AuthService, ComplaintService
+    util/                PasswordUtil (PBKDF2)
+    web/                 controllers, requests, interceptor, error handling
+  src/main/resources/application.yml
+frontend/                React + Vite app
+  src/pages/             login, register, dashboards, complaints
+  src/components/        layout
+  src/api.js             fetch wrapper
 ```
 
 ## Database
 
-- `database/schema.sql` creates `student_complaint_system`:
-  - `students(student_id PK, name NOT NULL, email UNIQUE NOT NULL, password_hash NOT NULL, created_at)`
-  - `admin(username PK, password_hash NOT NULL)`
-  - `complaints(complaint_id AUTO PK, student_id FK → students ON DELETE CASCADE, title, category, description, status DEFAULT 'Pending', admin_remark, created_at, updated_at, INDEX(student_id), INDEX(status), CHECK status IN (...))`
-- `database/seed.sql` inserts demo rows with real PBKDF2 hashes (optional — the server auto-seeds empty tables on startup via `DbInit`).
-- **MySQL version:** the `CHECK (status IN (...))` constraint is only *enforced* on **MySQL 8.0.16+** (older versions parse and ignore it). Status/category are also validated in the application layer (`ComplaintDAO.validStatus`/`validCategory`, `ComplaintService`), so the whitelist holds regardless of server version.
+Tables are created/updated automatically by Hibernate (`ddl-auto: update`).
+The database and demo data are seeded on startup when the tables are empty
+(`SEED_DEMO=true`, default). Set `SEED_DEMO=false` in production.
 
-## Setup
+Default local logins:
+- Admin: `admin` / `admin123`
+- Students: `STU001`–`STU004` / `pass123`
 
-1. Install **JDK 8+** and **MySQL 8.0+** (8.0.16+ recommended, see Database notes). The JDBC driver is already at `lib/mysql-connector-j.jar`.
-2. Configure via environment variables (no secrets in code). See `.env.example` for the full template — the app reads real env vars, it does **not** load a `.env` file:
-   - `DB_URL` (default `jdbc:mysql://localhost:3306/student_complaint_system?useSSL=false&serverTimezone=UTC`) — **must include the database name**
-   - `DB_USER` (default `root`)
-   - `DB_PASSWORD` (default empty)
-   - `AUTO_CREATE_DB` (default `true`) — set `false` to skip automatic `CREATE DATABASE`
-   ```powershell
-   $env:DB_USER="root"; $env:DB_PASSWORD="secret"   # Windows PowerShell
-   ```
-3. Database setup (automatic). On first start `config.DbInit` connects to the server, runs `CREATE DATABASE IF NOT EXISTS`, creates the three tables, and seeds demo data.
-   - This requires the DB user to have the **CREATE** privilege. If it doesn't, either set `AUTO_CREATE_DB=false` and create the database yourself, or run the SQL manually:
-     ```powershell
-     mysql -u root -p < database/schema.sql
-     mysql -u root -p < database/seed.sql
-     ```
-   - If `CREATE DATABASE` is denied, the server logs a clear `[ERROR]` naming the missing privilege and how to fix it. If `DB_URL` has **no database segment**, auto-setup is skipped entirely (no tables are created against an unknown database).
-4. Compile + run (from project root, PowerShell):
-   ```powershell
-   $files = (Get-ChildItem -Recurse -Filter *.java src).FullName
-   javac -d out -cp "lib/mysql-connector-j.jar" $files
-   java -cp "out;lib/mysql-connector-j.jar" Main
-   ```
-   Mac/Linux: replace `;` with `:`.
-5. Open `http://localhost:8080`.
+Statuses: `Pending → In Progress → Resolved`, and `Pending`/`In Progress` may be
+`Rejected`. Invalid transitions are rejected by the backend.
 
-## Tests
+## Run locally
 
-Plain-Java tests (no JUnit, no extra dependencies) cover the JDBC URL parsing used to auto-create the database (`config.DatabaseConnection`): typical URLs, missing/trailing database, IPv6 and replication authorities, extra path segments, and null/empty input.
+Backend (port 8080):
 
 ```powershell
-javac -d out-test -cp out test/config/DatabaseConnectionTest.java
-java -cp "out-test;out" config.DatabaseConnectionTest
+cd backend
+$env:DB_USER="root"; $env:DB_PASSWORD="your-password"
+mvn spring-boot:run
 ```
 
-Mac/Linux: replace `;` with `:`.
-
-These tests run automatically in CI (`.github/workflows/ci.yml`) on every push/PR.
-
-### Integration check (fresh database + privileges)
-
-Verifies that a DB user with CREATE privileges can auto-create and seed the schema. Run manually:
+Frontend (port 5173, proxies `/api` to the backend):
 
 ```powershell
-# 1. Compile (see Setup) and point at a scratch database
-$env:DB_URL="jdbc:mysql://localhost:3306/scs_fresh_check?useSSL=false&serverTimezone=UTC"
-$env:DB_USER="root"; $env:DB_PASSWORD="secret"      # a user WITH CREATE privilege
-# 2. Start the app; DbInit creates the DB/tables/seed on startup
-java -cp "out;lib/mysql-connector-j.jar" Main
-# 3. In another shell, confirm the schema + seeded rows exist
-mysql -u root -p -e "USE scs_fresh_check; SHOW TABLES; SELECT COUNT(*) FROM complaints;"
-# 4. Cleanup
-mysql -u root -p -e "DROP DATABASE scs_fresh_check;"
+cd frontend
+npm install
+npm run dev
 ```
 
-To confirm the failure path, repeat with a user that lacks CREATE: the server should log the `[ERROR] ... may lack CREATE privilege` guidance instead of crashing silently.
+Open http://localhost:5173.
 
-## Admin Setup
+### Environment variables
 
-Initial admin is created by `DbInit.seed()` on first start: `admin / admin123`. Change it after first login by updating the DB (hash via `java PasswordUtil <newpass>`), or extend the app with change-password. Students self-register; seed students `STU001–STU004 / pass123` exist for demo.
+Backend:
+- `PORT` (default `8080`)
+- `DB_URL`, `DB_USER`, `DB_PASSWORD`
+- `FRONTEND_ORIGIN` (CORS, default `http://localhost:5173`)
+- `SEED_DEMO` (default `true`)
 
-## Flows
+Frontend:
+- `VITE_API_BASE` (leave empty with the Vite proxy)
 
-Student: `index → register/login → /student/dashboard (stats + recent) → /student/complaints/new → /student/complaints → /student/complaints/{id} (status + remark)`.
-Admin: `/admin/login → /admin/dashboard (stats + search/filter) → /admin/complaints/{id} → update → student sees change`.
+## API
 
-## Security
+| Method | Path | Access |
+|---|---|---|
+| POST | `/api/auth/register` | public |
+| POST | `/api/auth/login` | public |
+| POST | `/api/auth/admin/login` | public |
+| POST | `/api/auth/logout` | public |
+| GET | `/api/auth/me` | session |
+| GET | `/api/student/dashboard` | student |
+| GET | `/api/student/complaints` | student |
+| POST | `/api/student/complaints` | student |
+| GET | `/api/student/complaints/{id}` | student (owner) |
+| GET | `/api/student/profile` | student |
+| GET | `/api/admin/dashboard` | admin |
+| GET | `/api/admin/complaints?search=&status=&category=` | admin |
+| GET | `/api/admin/complaints/{id}` | admin |
+| PATCH | `/api/admin/complaints/{id}` | admin |
+| GET | `/api/admin/profile` | admin |
 
-- PBKDF2 hashes (`password_hash`), constant-time verify; no plaintext anywhere in DB.
-- Server-side sessions (UUID cookie `SESSION_ID`, HttpOnly, 8h expiry). IDs come from session, never browser `student_id`.
-- RBAC on backend: `/api/student/*` = STUDENT, `/api/admin/*` = ADMIN; static pages redirect (unauthenticated → login, wrong role → own dashboard).
-- Ownership: `GET /api/student/complaints/{id}` returns 403 for another student's complaint.
-- All SQL via `PreparedStatement`; status/category allowlisted; search uses `LIKE ?` params.
-- Validation both sides; output escaped (`esc()` + JSON escape); generic 500s, details only in server log.
+## Tests and build
 
-## Project Structure
+```powershell
+cd backend
+mvn test            # unit tests
 
+cd ../frontend
+npm run build       # production build
 ```
-src/
-  Main.java                     # entry point + HTTP routes
-  config/DatabaseConnection.java config/DbInit.java
-  model/User.java               model/Complaint.java
-  dao/UserDAO.java              dao/ComplaintDAO.java
-  service/AuthService.java      service/ComplaintService.java
-  handler/StaticHandler.java    handler/LoginHandler.java
-  handler/RegisterHandler.java  handler/LogoutHandler.java
-  handler/ComplaintHandler.java handler/AdminHandler.java
-  util/Http.java  util/Json.java  util/PasswordUtil.java  util/SessionManager.java
-database/schema.sql  database/seed.sql
-test/config/DatabaseConnectionTest.java
-.env.example
-frontend/index.html  login.html  register.html  admin-login.html
-frontend/student-dashboard.html  complaints.html  submit-complaint.html
-frontend/complaint-details.html  admin-dashboard.html  admin-complaint.html  profile.html
-frontend/css/style.css  auth.css  dashboard.css
-frontend/js/app.js  auth.js  student.js  admin.js
-lib/mysql-connector-j.jar
-```
 
-## Routes
+## Deploy (single free service)
 
-- Pages: `/`, `/login`, `/register`, `/admin/login`, `/student/dashboard`, `/student/complaints`, `/student/complaints/new`, `/student/complaints/{id}`, `/student/profile`, `/admin/dashboard`, `/admin/complaints/{id}`, `/admin/profile`
-- API: `POST /api/login`, `GET /api/me`, `POST /api/register`, `POST /api/logout`,
-  `GET /api/student/stats`, `GET|POST /api/student/complaints`, `GET /api/student/complaints/{id}`,
-  `POST /api/admin/login`, `GET /api/admin/stats`, `GET /api/admin/complaints`, `GET|PUT /api/admin/complaints/{id}`
+The included `Dockerfile` builds the React app and bundles it into the Spring Boot
+jar, so one URL serves both the UI and the API (no CORS or session-cookie issues).
 
-## Viva (5 min)
+1. Create a free MySQL database (e.g. Aiven MySQL or TiDB Cloud Serverless) and note
+   the host, port, user, password, and database name.
+2. Push this repo, then on [Render](https://render.com) choose **New → Web Service**,
+   connect the repo, and select **Docker** (Free plan).
+3. Add environment variables:
+   - `DB_URL=jdbc:mysql://HOST:PORT/DATABASE?sslMode=REQUIRED&serverTimezone=UTC`
+   - `DB_USER`, `DB_PASSWORD`
+   - `SEED_DEMO=true` to create the demo admin/students on the first boot
+   - `JAVA_TOOL_OPTIONS=-Xmx320m`
+4. Deploy and open the Render URL. Free instances sleep after 15 minutes, so the
+   first request may take 30-60 seconds.
 
-1. `seed.sql` → show 3 tables + hashes (not passwords).
-2. Register student → `SELECT * FROM students` (hash, not plaintext).
-3. Submit → `SELECT * FROM complaints` (Pending).
-4. Admin login → search/filter → open → `In Progress` + remark → student page shows it (same DB row).
-5. Point to `SessionManager` (cookie), `ComplaintDAO.findById` ownership check, `PasswordUtil.verify`.
+Change the seeded `admin`/`admin123` password before sharing the URL publicly.
