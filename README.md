@@ -27,7 +27,6 @@ frontend/                React + Vite app
   src/pages/             login, register, dashboards, complaints
   src/components/        layout
   src/api.js             fetch wrapper
-database/                reference schema + seed SQL (optional)
 ```
 
 ## Database
@@ -65,13 +64,13 @@ Open http://localhost:5173.
 
 ### Environment variables
 
-Backend (see `backend/.env.example`):
+Backend:
 - `PORT` (default `8080`)
 - `DB_URL`, `DB_USER`, `DB_PASSWORD`
 - `FRONTEND_ORIGIN` (CORS, default `http://localhost:5173`)
 - `SEED_DEMO` (default `true`)
 
-Frontend (see `frontend/.env.example`):
+Frontend:
 - `VITE_API_BASE` (leave empty with the Vite proxy)
 
 ## API
@@ -104,8 +103,6 @@ cd ../frontend
 npm run build       # production build
 ```
 
-CI (`.github/workflows/ci.yml`) runs the backend tests and the frontend build.
-
 ## Deploy (single free service)
 
 The included `Dockerfile` builds the React app and bundles it into the Spring Boot
@@ -116,12 +113,11 @@ jar, so one URL serves both the UI and the API (no CORS or session-cookie issues
 2. Push this repo, then on [Render](https://render.com) choose **New → Web Service**,
    connect the repo, and select **Docker** (Free plan).
 3. Add environment variables:
-   - `DB_URL=jdbc:mysql://HOST:PORT/DATABASE?ssl-mode=REQUIRED&serverTimezone=UTC`
+   - `DB_URL=jdbc:mysql://HOST:PORT/DATABASE?sslMode=REQUIRED&serverTimezone=UTC`
    - `DB_USER`, `DB_PASSWORD`
    - `SEED_DEMO=true` to create the demo admin/students on the first boot
    - `JAVA_TOOL_OPTIONS=-Xmx320m`
 4. Deploy and open the Render URL. Free instances sleep after 15 minutes, so the
    first request may take 30-60 seconds.
 
-`render.yaml` is a blueprint for the same setup. Change the seeded
-`admin`/`admin123` password before sharing the URL publicly.
+Change the seeded `admin`/`admin123` password before sharing the URL publicly.
