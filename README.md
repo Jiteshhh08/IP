@@ -106,11 +106,22 @@ npm run build       # production build
 
 CI (`.github/workflows/ci.yml`) runs the backend tests and the frontend build.
 
-## Deployment notes
+## Deploy (single free service)
 
-- Backend: deploy `backend/` to a Java host (e.g. Render) with `DB_URL`, `DB_USER`,
-  `DB_PASSWORD`, `FRONTEND_ORIGIN`, and `SEED_DEMO=false`.
-- Frontend: deploy `frontend/` to Vercel (`npm run build`, output `dist`). Set
-  `VITE_API_BASE` to the backend URL, or proxy `/api` to the backend.
-- Host MySQL separately (a managed MySQL provider). The app only needs a database
-  URL and credentials.
+The included `Dockerfile` builds the React app and bundles it into the Spring Boot
+jar, so one URL serves both the UI and the API (no CORS or session-cookie issues).
+
+1. Create a free MySQL database (e.g. Aiven MySQL or TiDB Cloud Serverless) and note
+   the host, port, user, password, and database name.
+2. Push this repo, then on [Render](https://render.com) choose **New → Web Service**,
+   connect the repo, and select **Docker** (Free plan).
+3. Add environment variables:
+   - `DB_URL=jdbc:mysql://HOST:PORT/DATABASE?ssl-mode=REQUIRED&serverTimezone=UTC`
+   - `DB_USER`, `DB_PASSWORD`
+   - `SEED_DEMO=true` to create the demo admin/students on the first boot
+   - `JAVA_TOOL_OPTIONS=-Xmx320m`
+4. Deploy and open the Render URL. Free instances sleep after 15 minutes, so the
+   first request may take 30-60 seconds.
+
+`render.yaml` is a blueprint for the same setup. Change the seeded
+`admin`/`admin123` password before sharing the URL publicly.
