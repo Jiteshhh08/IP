@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api.js";
+import Timeline from "../components/Timeline.jsx";
 import { reference, shortDate, statusClass } from "../format.js";
 
 const STATUSES = ["Pending", "In Progress", "Resolved", "Rejected"];
@@ -13,6 +14,7 @@ export default function AdminComplaintDetail() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [timelineRefresh, setTimelineRefresh] = useState(0);
 
   function load() {
     api(`/api/admin/complaints/${id}`)
@@ -41,6 +43,7 @@ export default function AdminComplaintDetail() {
       });
       setComplaint(updated);
       setMessage("Complaint updated.");
+      setTimelineRefresh((value) => value + 1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -119,6 +122,13 @@ export default function AdminComplaintDetail() {
             </form>
           </section>
         </div>
+      )}
+
+      {complaint && (
+        <Timeline
+          endpoint={`/api/admin/complaints/${id}/timeline`}
+          refreshKey={timelineRefresh}
+        />
       )}
     </>
   );

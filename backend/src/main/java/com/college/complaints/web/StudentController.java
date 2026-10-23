@@ -47,6 +47,19 @@ public class StudentController {
         return complaintService.forStudentDetail(user(session).id(), id);
     }
 
+    @GetMapping("/complaints/{id}/timeline")
+    public List<TimelineEntry> timeline(@PathVariable Integer id, HttpSession session) {
+        return complaintService.timelineForStudent(user(session).id(), id);
+    }
+
+    @PostMapping("/complaints/{id}/timeline")
+    public ResponseEntity<TimelineEntry> comment(@PathVariable Integer id,
+            @Valid @RequestBody Requests.Comment request, HttpSession session) {
+        TimelineEntry entry = complaintService.addStudentComment(user(session).id(), id,
+                request.message());
+        return ResponseEntity.status(HttpStatus.CREATED).body(entry);
+    }
+
     @GetMapping("/profile")
     public SessionUser profile(HttpSession session) {
         return user(session);

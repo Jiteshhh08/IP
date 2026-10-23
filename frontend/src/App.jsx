@@ -11,6 +11,7 @@ import ComplaintDetail from "./pages/ComplaintDetail.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminComplaints from "./pages/AdminComplaints.jsx";
 import AdminComplaintDetail from "./pages/AdminComplaintDetail.jsx";
+import AdminAnalytics from "./pages/AdminAnalytics.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
 function Protected({ role, children }) {
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/complaints" element={<AdminComplaints />} />
         <Route path="/admin/complaints/:id" element={<AdminComplaintDetail />} />
+        <Route path="/admin/analytics" element={<AdminAnalytics />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

@@ -15,6 +15,7 @@ export default function Layout() {
     : [
         { to: "/admin", label: "Dashboard", end: true },
         { to: "/admin/complaints", label: "All Complaints" },
+        { to: "/admin/analytics", label: "Analytics" },
       ];
 
   async function handleLogout() {

@@ -54,4 +54,10 @@ public final class Requests {
             @NotBlank(message = "Status is required") String status,
             @Size(max = 2000, message = "Remark must be at most 2000 characters") String remark) {
     }
+
+    public record Comment(
+            @NotBlank(message = "Message is required")
+            @Size(max = 2000, message = "Message must be at most 2000 characters")
+            String message) {
+    }
 }

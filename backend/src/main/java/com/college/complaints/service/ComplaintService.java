@@ -1,11 +1,15 @@
 package com.college.complaints.service;
 
 import com.college.complaints.domain.Complaint;
+import com.college.complaints.domain.ComplaintUpdate;
 import com.college.complaints.domain.Student;
 import com.college.complaints.repository.ComplaintRepository;
+import com.college.complaints.repository.ComplaintUpdateRepository;
 import com.college.complaints.repository.StudentRepository;
 import com.college.complaints.web.ApiException;
 import com.college.complaints.web.Requests;
+import com.college.complaints.web.TimelineEntry;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +33,13 @@ public class ComplaintService {
 
     private final ComplaintRepository complaints;
     private final StudentRepository students;
+    private final ComplaintUpdateRepository updates;
 
-    public ComplaintService(ComplaintRepository complaints, StudentRepository students) {
+    public ComplaintService(ComplaintRepository complaints, StudentRepository students,
+            ComplaintUpdateRepository updates) {
         this.complaints = complaints;
         this.students = students;
+        this.updates = updates;
     }
 
     @Transactional
@@ -49,7 +56,9 @@ public class ComplaintService {
         complaint.setCategory(category);
         complaint.setDescription(request.description().trim());
         complaint.setStatus("Pending");
-        return complaints.save(complaint);
+        Complaint saved = complaints.save(complaint);
+        saveUpdate(saved, "CREATED", "STUDENT", saved.getStudent().getName(), "Complaint submitted.");
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -80,22 +89,104 @@ public class ComplaintService {
     }
 
     @Transactional
-    public Complaint updateStatus(Integer complaintId, String requestedStatus, String remark) {
+    public Complaint updateStatus(Integer complaintId, String requestedStatus, String remark,
+            String adminName) {
         Complaint complaint = get(complaintId);
         String status = canonicalStatus(requestedStatus);
         if (status == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid status.");
         }
-        if (!status.equals(complaint.getStatus())
-                && !TRANSITIONS.getOrDefault(complaint.getStatus(), Set.of()).contains(status)) {
+        String previousStatus = complaint.getStatus();
+        boolean statusChanged = !status.equals(previousStatus);
+        if (statusChanged && !TRANSITIONS.getOrDefault(previousStatus, Set.of()).contains(status)) {
             throw new ApiException(HttpStatus.CONFLICT,
-                    "Cannot change status from " + complaint.getStatus() + " to " + status + ".");
+                    "Cannot change status from " + previousStatus + " to " + status + ".");
         }
+        String previousRemark = complaint.getAdminRemark();
+        String nextRemark = remark == null ? previousRemark : remark.trim();
+        boolean remarkChanged = remark != null
+                && !nextRemark.equals(previousRemark == null ? "" : previousRemark);
         complaint.setStatus(status);
         if (remark != null) {
-            complaint.setAdminRemark(remark.trim());
+            complaint.setAdminRemark(nextRemark);
         }
-        return complaints.save(complaint);
+        Complaint saved = complaints.save(complaint);
+        if (statusChanged) {
+            saveUpdate(saved, "STATUS", "ADMIN", adminName,
+                    "Status changed from " + previousStatus + " to " + status + ".");
+        }
+        if (remarkChanged && !nextRemark.isBlank()) {
+            saveUpdate(saved, "COMMENT", "ADMIN", adminName, nextRemark);
+        }
+        return saved;
+    }
+
+    @Transactional
+    public List<TimelineEntry> timelineForStudent(String studentId, Integer complaintId) {
+        Complaint complaint = forStudentDetail(studentId, complaintId);
+        ensureCreatedEntry(complaint);
+        return entries(complaintId);
+    }
+
+    @Transactional
+    public List<TimelineEntry> timelineForAdmin(Integer complaintId) {
+        Complaint complaint = get(complaintId);
+        ensureCreatedEntry(complaint);
+        return entries(complaintId);
+    }
+
+    @Transactional
+    public TimelineEntry addStudentComment(String studentId, Integer complaintId, String message) {
+        Complaint complaint = forStudentDetail(studentId, complaintId);
+        ComplaintUpdate update = saveUpdate(complaint, "COMMENT", "STUDENT",
+                complaint.getStudent().getName(), message.trim());
+        return toEntry(update);
+    }
+
+    @Transactional
+    public TimelineEntry addAdminComment(Integer complaintId, String message, String adminName) {
+        Complaint complaint = get(complaintId);
+        ComplaintUpdate update = saveUpdate(complaint, "COMMENT", "ADMIN", adminName,
+                message.trim());
+        return toEntry(update);
+    }
+
+    private void ensureCreatedEntry(Complaint complaint) {
+        if (!updates.existsByComplaint_ComplaintIdAndType(complaint.getComplaintId(), "CREATED")) {
+            saveUpdate(complaint, "CREATED", "STUDENT", complaint.getStudent().getName(),
+                    "Complaint submitted.", complaint.getCreatedAt());
+        }
+    }
+
+    private List<TimelineEntry> entries(Integer complaintId) {
+        return updates.findByComplaint_ComplaintIdOrderByCreatedAtAscUpdateIdAsc(complaintId)
+                .stream()
+                .map(this::toEntry)
+                .toList();
+    }
+
+    private ComplaintUpdate saveUpdate(Complaint complaint, String type, String role, String author,
+            String message) {
+        return saveUpdate(complaint, type, role, author, message, null);
+    }
+
+    private ComplaintUpdate saveUpdate(Complaint complaint, String type, String role, String author,
+            String message, LocalDateTime createdAt) {
+        ComplaintUpdate update = new ComplaintUpdate();
+        update.setComplaint(complaint);
+        update.setType(type);
+        update.setAuthorRole(role);
+        update.setAuthorName(author);
+        update.setMessage(message);
+        if (createdAt != null) {
+            update.setCreatedAt(createdAt);
+        }
+        return updates.save(update);
+    }
+
+    private TimelineEntry toEntry(ComplaintUpdate update) {
+        return new TimelineEntry(update.getUpdateId(), update.getType(), update.getAuthorRole(),
+                update.getAuthorName(), update.getMessage(), update.getCreatedAt());
     }
 
     @Transactional(readOnly = true)

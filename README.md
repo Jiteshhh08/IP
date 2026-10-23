@@ -1,15 +1,17 @@
 # Student Complaint Management System
 
 A simple full-stack app where students submit complaints and admins resolve them.
-Students register and log in, submit and track complaints, and see admin responses.
-Admins search and filter complaints, update status, and leave a remark.
+Students register and log in, submit and track complaints, filter their list, and
+see admin responses. Admins search and filter complaints, update status, leave
+remarks, view analytics, export CSV, and comment on a shared complaint timeline.
 
 ## Stack
 
 - **Backend:** Java 21, Spring Boot 3.5, Spring Web, Spring Data JPA, Bean Validation, MySQL.
 - **Frontend:** React 18, Vite, React Router, plain CSS.
 - **Auth:** session cookie (`JSESSIONID`), PBKDF2 password hashing.
-- **Database:** MySQL `student_complaint_system` (`students`, `admin`, `complaints`).
+- **Database:** MySQL `student_complaint_system` (`students`, `admin`, `complaints`,
+  `complaint_updates`).
 
 ## Project structure
 
@@ -17,15 +19,15 @@ Admins search and filter complaints, update status, and leave a remark.
 backend/                 Spring Boot API
   src/main/java/com/college/complaints/
     config/              CORS/interceptor config, demo seeder
-    domain/              Student, Admin, Complaint
+    domain/              Student, Admin, Complaint, ComplaintUpdate
     repository/          Spring Data repositories
     service/             AuthService, ComplaintService
     util/                PasswordUtil (PBKDF2)
     web/                 controllers, requests, interceptor, error handling
   src/main/resources/application.yml
 frontend/                React + Vite app
-  src/pages/             login, register, dashboards, complaints
-  src/components/        layout
+  src/pages/             login, register, dashboards, complaints, analytics
+  src/components/        layout, timeline
   src/api.js             fetch wrapper
 ```
 
@@ -86,12 +88,20 @@ Frontend:
 | GET | `/api/student/complaints` | student |
 | POST | `/api/student/complaints` | student |
 | GET | `/api/student/complaints/{id}` | student (owner) |
+| GET | `/api/student/complaints/{id}/timeline` | student (owner) |
+| POST | `/api/student/complaints/{id}/timeline` | student (owner) |
 | GET | `/api/student/profile` | student |
 | GET | `/api/admin/dashboard` | admin |
 | GET | `/api/admin/complaints?search=&status=&category=` | admin |
 | GET | `/api/admin/complaints/{id}` | admin |
 | PATCH | `/api/admin/complaints/{id}` | admin |
+| GET | `/api/admin/complaints/{id}/timeline` | admin |
+| POST | `/api/admin/complaints/{id}/timeline` | admin |
 | GET | `/api/admin/profile` | admin |
+
+The admin analytics page and CSV export are computed in the browser from
+`GET /api/admin/complaints`; they do not need extra endpoints. Student
+filters/search on the "My complaints" page are also client-side.
 
 ## Tests and build
 

@@ -9,6 +9,10 @@ they work, and how the app is deployed.
 - Students submit complaints, see their own complaints, and track the status.
 - Admins log in separately, search/filter all complaints, and update status with
   a remark.
+- Every complaint has a shared timeline: submission, status changes, remarks, and
+  comments from the student or admin.
+- Admins also get an analytics page (status/category/month trends) and CSV export.
+- Students can search/filter their own complaint list.
 - Complaint status flow: `Pending -> In Progress -> Resolved`, or
   `Pending`/`In Progress -> Rejected`. `Resolved` and `Rejected` are final.
 
@@ -52,6 +56,9 @@ they work, and how the app is deployed.
 - `Complaint`: auto-increment `complaintId`, many-to-one `student`,
   `title`, `category`, `description`, `status`, `adminRemark`,
   `createdAt`, `updatedAt`.
+- `ComplaintUpdate`: auto-increment `updateId`, many-to-one `complaint`, `type`
+  (`CREATED`, `STATUS`, `COMMENT`), `authorRole`, `authorName`, `message`,
+  `createdAt`. Stored in the `complaint_updates` table.
 
 ### Authentication and authorization
 
@@ -78,9 +85,10 @@ they work, and how the app is deployed.
 
 - `AuthController` (`/api/auth`): register, login, admin login, logout, `me`.
 - `StudentController` (`/api/student`): dashboard, own complaints, create,
-  detail (ownership checked), profile.
+  detail (ownership checked), timeline read/add comment, profile.
 - `AdminController` (`/api/admin`): dashboard, all complaints with
-  `search`/`status`/`category` filters, detail, status update, profile.
+  `search`/`status`/`category` filters, detail, status update, timeline read/add
+  comment, profile. The analytics page reuses the complaints list endpoint.
 
 ### Business rules
 
@@ -91,6 +99,10 @@ they work, and how the app is deployed.
   - Students can only read their own complaint detail; otherwise `403`.
   - Dashboards return `stats` and the 5 most recent complaints.
   - Search matches complaint ID, student ID, student name, or title.
+  - Creating a complaint adds a `CREATED` timeline entry; a status change adds a
+    `STATUS` entry; a new remark or comment adds a `COMMENT` entry.
+  - Students can only read/comment on their own complaint timeline; otherwise `403`.
+  - Legacy complaints get a `CREATED` entry backfilled on their first timeline view.
 
 ### Validation and errors
 
@@ -100,6 +112,7 @@ they work, and how the app is deployed.
   - Email: valid email.
   - Password: 6-100 characters.
   - Complaint title: max 150; description: max 5,000; remark: max 2,000.
+  - Timeline comment: required, max 2,000.
 - `ApiException` + `ApiExceptionHandler`:
   - Business errors -> `{ "error": "..." }` with the correct status.
   - Validation errors -> `400` with an `error` and a `fields` map.
@@ -113,6 +126,11 @@ Tables are created by Hibernate on startup:
 - `admin`: `username`, `password_hash`.
 - `complaints`: `complaint_id`, `student_id`, `title`, `category`,
   `description`, `status`, `admin_remark`, `created_at`, `updated_at`.
+- `complaint_updates`: `update_id`, `complaint_id`, `entry_type`, `author_role`,
+  `author_name`, `message`, `created_at`.
+
+The timeline table is created automatically on the first startup after deploying
+this version (`ddl-auto: update`); no manual migration is needed.
 
 `DemoDataSeeder` runs on startup when `SEED_DEMO=true`:
 
@@ -144,6 +162,13 @@ Connection settings:
   - `Protected` checks `loading`, `user`, and `role`; redirects to the correct
     login page or dashboard.
 - `Layout.jsx`: sidebar per role, current user, and logout.
+- `AdminAnalytics.jsx`: fetches all complaints and computes status/category/month
+  charts in the browser; no chart library is used.
+- `Timeline.jsx`: loads a complaint's timeline, posts comments, and shows the
+  author, role, entry type, and timestamp. Reused by the student and admin detail
+  pages.
+- `Complaints.jsx`: client-side search/status/category filtering for students.
+- `AdminComplaints.jsx`: CSV export of the currently filtered complaint list.
 - `vite.config.js`:
   - Dev server on port `5173`.
   - Proxies `/api` to `http://localhost:8080`, so the browser sees same-origin
@@ -306,5 +331,8 @@ session, and admin login returns `200` with the admin JSON.
 - No delete complaint feature.
 - Sessions are server-side and in memory; horizontal scaling would need sticky
   sessions or a shared session store.
-- Filtering is done in Java after loading complaints, which is fine for a demo
-  but would be moved to database queries for large datasets.
+- Admin filtering is done in Java after loading complaints; student filters and
+  analytics are computed in the browser. This is fine for a demo but would move
+  to database queries for large datasets.
+- Legacy complaints only get a backfilled "submitted" timeline entry; historical
+  status changes from before the timeline feature are not available.

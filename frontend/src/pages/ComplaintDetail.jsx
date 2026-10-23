@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api.js";
+import Timeline from "../components/Timeline.jsx";
 import { reference, shortDate, statusClass } from "../format.js";
 
 export default function ComplaintDetail() {
@@ -51,6 +52,8 @@ export default function ComplaintDetail() {
           <p>{complaint.adminRemark || "No response yet."}</p>
         </div>
       </section>
+
+      <Timeline endpoint={`/api/student/complaints/${id}/timeline`} />
     </>
   );
 }

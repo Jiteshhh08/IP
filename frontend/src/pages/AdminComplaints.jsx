@@ -36,6 +36,50 @@ export default function AdminComplaints() {
     load();
   }
 
+  function exportCsv() {
+    if (!complaints || complaints.length === 0) {
+      return;
+    }
+    const headers = [
+      "Ref",
+      "Student ID",
+      "Student Name",
+      "Title",
+      "Category",
+      "Status",
+      "Created At",
+      "Updated At",
+      "Admin Remark",
+      "Description",
+    ];
+    const rows = complaints.map((complaint) => [
+      reference(complaint.complaintId),
+      complaint.student.studentId,
+      complaint.student.name,
+      complaint.title,
+      complaint.category,
+      complaint.status,
+      complaint.createdAt,
+      complaint.updatedAt,
+      complaint.adminRemark || "",
+      complaint.description,
+    ]);
+    const csv = [headers, ...rows]
+      .map((row) =>
+        row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\r\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `complaints-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   return (
     <>
       <div className="page-head">
@@ -43,6 +87,14 @@ export default function AdminComplaints() {
           <h1>All complaints</h1>
           <p className="muted">Search, filter, and manage complaints.</p>
         </div>
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={exportCsv}
+          disabled={!complaints || complaints.length === 0}
+        >
+          Export CSV
+        </button>
       </div>
 
       <form className="filters" onSubmit={submit}>
