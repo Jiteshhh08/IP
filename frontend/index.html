@@ -1,38 +1,12 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>College Complaint Portal</title>
-  <link rel="stylesheet" href="/css/style.css">
-  <link rel="stylesheet" href="/css/auth.css">
-</head>
-<body>
-  <nav class="nav">
-    <a class="brand" href="/">🎓 College Complaint Portal</a>
-    <div class="links">
-      <a href="/login">Student Login</a>
-      <a href="/register">Register</a>
-      <a href="/admin/login">Admin</a>
-    </div>
-  </nav>
-
-  <div class="auth-wrap">
-    <div class="auth-card">
-      <div class="auth-hero">
-        <div class="logo">🎓</div>
-        <h1>Student Complaint Management</h1>
-        <p>Submit complaints, track status, see admin responses — all in one place.</p>
-      </div>
-      <div class="card">
-        <div class="row">
-          <a class="btn" href="/login">Student Login</a>
-          <a class="btn ghost" href="/register">Create Account</a>
-        </div>
-        <div class="alt">Administrator? <a href="/admin/login">Admin login</a></div>
-      </div>
-      <p class="helper" style="text-align:center">Flow: Student submits → MySQL → Admin updates → Student sees the change.</p>
-    </div>
-  </div>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>College Complaint Portal</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
